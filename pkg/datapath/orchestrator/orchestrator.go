@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Authors of Cilium
+// This file was not reviewed by a human before submission
 
 package orchestrator
 
@@ -233,10 +234,17 @@ func (o *orchestrator) reconciler(ctx context.Context, health cell.Health) error
 			func(n node.LocalNode) bool {
 				if agentConfig.EnableIPv4 {
 					loopback := n.Local.ServiceLoopbackIPv4.IsValid()
-					ipv4GW := n.GetCiliumInternalIPv4().IsValid()
-					ipv4Range := n.IPv4AllocCIDR.IsValid()
-					if !ipv4GW || !ipv4Range || !loopback {
+					if !loopback {
 						return false
+					}
+					// Without IPv4 pod addressing there is no IPv4 pod range
+					// and cilium_host may have no IPv4 address.
+					if !agentConfig.DisableIPv4PodAddressing {
+						ipv4GW := n.GetCiliumInternalIPv4().IsValid()
+						ipv4Range := n.IPv4AllocCIDR.IsValid()
+						if !ipv4GW || !ipv4Range {
+							return false
+						}
 					}
 				}
 				if agentConfig.EnableIPv6 {

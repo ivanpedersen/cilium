@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Authors of Cilium
+// This file was not reviewed by a human before submission
 
 package ipamcell
 
@@ -136,7 +137,7 @@ func (r *IPAMInitializer) AutoComplete(ctx context.Context) error {
 		return fmt.Errorf("IPv6 allocation CIDR is not configured. Please specify --%s", option.IPv6Range)
 	}
 
-	if r.daemonConfig.EnableIPv4 && !ln.IPv4AllocCIDR.IsValid() {
+	if r.daemonConfig.EnableIPv4 && !r.daemonConfig.DisableIPv4PodAddressing && !ln.IPv4AllocCIDR.IsValid() {
 		return fmt.Errorf("IPv4 allocation CIDR is not configured. Please specify --%s", option.IPv4Range)
 	}
 
@@ -167,7 +168,7 @@ func (r *IPAMInitializer) setDefaultPrefix(device string, localNode *node.LocalN
 		ipv4range := localNode.IPv4AllocCIDR
 		ipv6range := localNode.IPv6AllocCIDR
 
-		if !ipv4range.IsValid() {
+		if !ipv4range.IsValid() && !r.daemonConfig.DisableIPv4PodAddressing {
 			// If the IPv6AllocRange is not nil then the IPv4 allocation should be
 			// derived from the IPv6AllocRange.
 			//                     vvvv vvvv

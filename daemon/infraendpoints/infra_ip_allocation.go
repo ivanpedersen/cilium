@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Authors of Cilium
+// This file was not reviewed by a human before submission
 
 package infraendpoints
 
@@ -128,6 +129,12 @@ func (r *infraIPAllocator) allocateRouterIPv4(ctx context.Context, family node.A
 			r.logger.Warn("Specified router IP is within IPv4 podCIDR.")
 		}
 		return routerIP, nil
+	}
+
+	if r.daemonConfig.DisableIPv4PodAddressing {
+		// No IPv4 pool to allocate from; --local-router-ipv4 is the only
+		// way to get an IPv4 address on cilium_host in this mode.
+		return nil, nil
 	}
 
 	return r.reallocateRouterIPs(ctx, family, fromK8s, fromFS)
@@ -382,7 +389,7 @@ func (r *infraIPAllocator) allocateHealthIPs(ctx context.Context, oldV4HealthIP 
 		return nil
 	}
 	var healthIPv4, healthIPv6 netip.Addr
-	if r.daemonConfig.EnableIPv4 {
+	if r.daemonConfig.EnableIPv4 && !r.daemonConfig.DisableIPv4PodAddressing {
 		var result *ipam.AllocationResult
 		var err error
 		healthIPv4 = oldV4HealthIP
@@ -467,7 +474,7 @@ func (r *infraIPAllocator) allocateIngressIPs(ctx context.Context, oldV4IngressI
 	}
 
 	ingressIPv4 := oldV4IngressIP
-	if r.daemonConfig.EnableIPv4 {
+	if r.daemonConfig.EnableIPv4 && !r.daemonConfig.DisableIPv4PodAddressing {
 		var result *ipam.AllocationResult
 		var err error
 

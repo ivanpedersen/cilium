@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Authors of Cilium
+// This file was not reviewed by a human before submission
 
 package cmd
 
@@ -384,6 +385,9 @@ func InitGlobalFlags(logger *slog.Logger, cmd *cobra.Command, vp *viper.Viper) {
 
 	flags.Bool(option.K8sRequireIPv6PodCIDRName, false, "Require IPv6 PodCIDR to be specified in node resource")
 	option.BindEnv(vp, option.K8sRequireIPv6PodCIDRName)
+
+	flags.Bool(option.DisableIPv4PodAddressingName, false, "Do not allocate IPv4 addresses to endpoints while IPv4 is enabled; IPv4 is then only used for services (e.g. NAT46) on IPv6-only nodes")
+	option.BindEnv(vp, option.DisableIPv4PodAddressingName)
 
 	flags.Bool(option.KeepConfig, false, "When restoring state, keeps containers' configuration in place")
 	option.BindEnv(vp, option.KeepConfig)
