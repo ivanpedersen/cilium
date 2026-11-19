@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Authors of Cilium
+// This file was not reviewed by a human before submission
 
 package ipamcell
 
@@ -143,7 +144,7 @@ func (r *IPAMInitializer) AutoComplete(ctx context.Context) error {
 		return fmt.Errorf("IPv6 allocation CIDR is not configured. Please specify --%s", option.IPv6Range)
 	}
 
-	if r.daemonConfig.EnableIPv4 && ln.IPv4AllocCIDR == nil {
+	if r.daemonConfig.EnableIPv4 && !r.daemonConfig.DisableIPv4PodAddressing && ln.IPv4AllocCIDR == nil {
 		return fmt.Errorf("IPv4 allocation CIDR is not configured. Please specify --%s", option.IPv4Range)
 	}
 
@@ -176,7 +177,7 @@ func (r *IPAMInitializer) setDefaultPrefix(device string, localNode *node.LocalN
 		ipv4range := localNode.IPv4AllocCIDR
 		ipv6range := localNode.IPv6AllocCIDR
 
-		if ipv4range == nil {
+		if ipv4range == nil && !r.daemonConfig.DisableIPv4PodAddressing {
 			// If the IPv6AllocRange is not nil then the IPv4 allocation should be
 			// derived from the IPv6AllocRange.
 			//                     vvvv vvvv
@@ -269,7 +270,9 @@ func (r *IPAMInitializer) ValidatePostInit(ctx context.Context) error {
 		return fmt.Errorf("failed to retrieve local node: %w", err)
 	}
 
-	if r.daemonConfig.EnableIPv4 {
+	// Without IPv4 pod addressing the node may be IPv6-only, so neither an
+	// IPv4 node address nor an IPv4 cilium_host address is required.
+	if r.daemonConfig.EnableIPv4 && !r.daemonConfig.DisableIPv4PodAddressing {
 		if ln.GetNodeIP(false) == nil {
 			return fmt.Errorf("external IPv4 node address could not be derived, please configure via --ipv4-node")
 		}
@@ -279,7 +282,7 @@ func (r *IPAMInitializer) ValidatePostInit(ctx context.Context) error {
 		return fmt.Errorf("external node address could not be derived, please configure via --ipv4-node or --ipv6-node")
 	}
 
-	if r.daemonConfig.EnableIPv4 && ln.GetCiliumInternalIP(false) == nil {
+	if r.daemonConfig.EnableIPv4 && !r.daemonConfig.DisableIPv4PodAddressing && ln.GetCiliumInternalIP(false) == nil {
 		return fmt.Errorf("BUG: Internal IPv4 node address was not configured")
 	}
 

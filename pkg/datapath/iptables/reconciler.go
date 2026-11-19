@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Authors of Cilium
+// This file was not reviewed by a human before submission
 
 package iptables
 
@@ -41,7 +42,8 @@ type localNodeInfo struct {
 
 func (lni localNodeInfo) isValid() bool {
 	switch {
-	case option.Config.EnableIPv4 && (lni.internalIPv4.IsUnspecified() || lni.ipv4AllocCIDR == ""):
+	case option.Config.EnableIPv4 && !option.Config.DisableIPv4PodAddressing &&
+		(lni.internalIPv4.IsUnspecified() || lni.ipv4AllocCIDR == ""):
 		return false
 	case option.Config.EnableIPv6 && (lni.internalIPv6.IsUnspecified() || lni.ipv6AllocCIDR == ""):
 		return false

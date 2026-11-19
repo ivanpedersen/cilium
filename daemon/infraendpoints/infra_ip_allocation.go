@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Authors of Cilium
+// This file was not reviewed by a human before submission
 
 package infraendpoints
 
@@ -123,10 +124,16 @@ func (r *infraIPAllocator) allocateRouterIPv4(ctx context.Context, family node.A
 		if routerIP == nil {
 			return nil, fmt.Errorf("invalid local-router-ip: %s", r.daemonConfig.LocalRouterIPv4)
 		}
-		if r.nodeAddressing.IPv4().AllocationCIDR().Contains(routerIP) {
+		if cidr := r.nodeAddressing.IPv4().AllocationCIDR(); cidr != nil && cidr.Contains(routerIP) {
 			r.logger.Warn("Specified router IP is within IPv4 podCIDR.")
 		}
 		return routerIP, nil
+	}
+
+	if r.daemonConfig.DisableIPv4PodAddressing {
+		// No IPv4 pool to allocate from; --local-router-ipv4 is the only
+		// way to get an IPv4 address on cilium_host in this mode.
+		return nil, nil
 	}
 
 	return r.reallocateRouterIPs(ctx, family, fromK8s, fromFS)
@@ -354,7 +361,7 @@ func (r *infraIPAllocator) allocateHealthIPs(oldV4HealthIP net.IP, oldV6HealthIP
 		return nil
 	}
 	var healthIPv4, healthIPv6 net.IP
-	if r.daemonConfig.EnableIPv4 {
+	if r.daemonConfig.EnableIPv4 && !r.daemonConfig.DisableIPv4PodAddressing {
 		var result *ipam.AllocationResult
 		var err error
 		healthIPv4 = oldV4HealthIP
@@ -455,7 +462,7 @@ func (r *infraIPAllocator) allocateIngressIPs(ctx context.Context, oldV4IngressI
 	}
 
 	ingressIPv4 := oldV4IngressIP
-	if r.daemonConfig.EnableIPv4 {
+	if r.daemonConfig.EnableIPv4 && !r.daemonConfig.DisableIPv4PodAddressing {
 		var result *ipam.AllocationResult
 		var err error
 
@@ -560,6 +567,16 @@ func (r *infraIPAllocator) allocateIngressIPs(ctx context.Context, oldV4IngressI
 
 		r.localNodeStore.Update(func(n *node.LocalNode) { n.IPv6IngressIP = net.IP(result.IP.AsSlice()).To16() })
 		r.logger.Debug("Allocated IPv6 Ingress address", logfields.IPAddr, result.IP)
+
+		if r.daemonConfig.EnableIPv4 && r.daemonConfig.DisableIPv4PodAddressing {
+			// Envoy needs an IPv4 ingress address to resolve the ingress
+			// identity for connections to IPv4 VIPs (e.g. a Gateway), but
+			// there is no IPv4 pool. Use a node-local link-local address;
+			// it is only used for identity lookup, never as packet source.
+			v4 := placeholderIngressIPv4(result.IP)
+			r.localNodeStore.Update(func(n *node.LocalNode) { n.IPv4IngressIP = net.IP(v4.AsSlice()).To16() })
+			r.logger.Info("Using placeholder IPv4 Ingress address", logfields.IPAddr, v4)
+		}
 
 		// In ENI mode, we require the gateway, CIDRs, and the
 		// ENI MAC addr in order to set up rules and routes on the local node to
@@ -879,4 +896,19 @@ func getCiliumHostIPsFromFile(nodeConfig string) (ipv4GW, ipv6Router net.IP) {
 		}
 	}
 	return ipv4GW, ipv6Router
+}
+
+// placeholderIngressIPv4 derives a link-local IPv4 address in 169.254.0.0/16
+// from the last two bytes of the IPv6 ingress address. It avoids .0/.255 host
+// bytes, the service loopback 169.254.42.0/24 and metadata 169.254.169.0/24.
+func placeholderIngressIPv4(v6 netip.Addr) netip.Addr {
+	b := v6.As16()
+	hi, lo := b[14], b[15]
+	if hi == 0 || hi == 42 || hi == 169 || hi == 255 {
+		hi ^= 0x80
+	}
+	if lo == 0 || lo == 255 {
+		lo = 1
+	}
+	return netip.AddrFrom4([4]byte{169, 254, hi, lo})
 }

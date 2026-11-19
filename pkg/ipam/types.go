@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Authors of Cilium
+// This file was not reviewed by a human before submission
 
 package ipam
 
@@ -160,10 +161,11 @@ func (ipam *IPAM) EndpointRestored(ep *endpoint.Endpoint) {}
 
 // RestoreFinished marks the status of restoration as done
 func (ipam *IPAM) RestoreFinished() {
-	if ipam.config.EnableIPv6 {
+	if ipam.config.EnableIPv6 && ipam.ipv6Allocator != nil {
 		ipam.ipv6Allocator.RestoreFinished()
 	}
-	if ipam.config.EnableIPv4 {
+	// ipv4Allocator is nil when IPv4 pod addressing is disabled.
+	if ipam.config.EnableIPv4 && ipam.ipv4Allocator != nil {
 		ipam.ipv4Allocator.RestoreFinished()
 	}
 }

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Authors of Cilium
+// This file was not reviewed by a human before submission
 
 package infraendpoints
 
@@ -55,7 +56,7 @@ func registerIngressEndpoint(params ingressEndpointCreatorParams) {
 		endpointManager:        params.EndpointManager,
 		endpointRestorePromise: params.EndpointRestorePromise,
 		localNodeStore:         params.LocalNodeStore,
-		ipv4Enabled:            params.DaemonConfig.IPv4Enabled(),
+		ipv4Enabled:            params.DaemonConfig.IPv4Enabled() && !params.DaemonConfig.DisableIPv4PodAddressing,
 		ipv6Enabled:            params.DaemonConfig.IPv6Enabled(),
 	}
 

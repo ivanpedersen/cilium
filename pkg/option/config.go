@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Authors of Cilium
+// This file was not reviewed by a human before submission
 
 package option
 
@@ -169,6 +170,9 @@ const (
 
 	// K8sRequireIPv6PodCIDRName is the name of the K8sRequireIPv6PodCIDR option
 	K8sRequireIPv6PodCIDRName = "k8s-require-ipv6-pod-cidr"
+
+	// DisableIPv4PodAddressingName is the name of the DisableIPv4PodAddressing option
+	DisableIPv4PodAddressingName = "disable-ipv4-pod-addressing"
 
 	// EnableK8s operation of Kubernetes-related services/controllers.
 	// Intended for operating cilium with CNI-compatible orchestrators other than Kubernetes. (default is true)
@@ -1269,6 +1273,11 @@ type DaemonConfig struct {
 	// IPv6 PodCIDR. Cilium will block bootstrapping until the information
 	// is available.
 	K8sRequireIPv6PodCIDR bool
+
+	// DisableIPv4PodAddressing stops endpoints from getting IPv4 addresses
+	// while IPv4 is enabled. The IPv4 datapath and IPv4 service frontends
+	// (e.g. for NAT46) stay active, and no IPv4 PodCIDR is needed.
+	DisableIPv4PodAddressing bool
 
 	// RouteMetric is the metric used for the routes added to the cilium_host device
 	RouteMetric int
@@ -2483,6 +2492,7 @@ func (c *DaemonConfig) Populate(logger *slog.Logger, vp *viper.Viper) {
 	c.IPv6ServiceRange = vp.GetString(IPv6ServiceRange)
 	c.K8sRequireIPv4PodCIDR = vp.GetBool(K8sRequireIPv4PodCIDRName)
 	c.K8sRequireIPv6PodCIDR = vp.GetBool(K8sRequireIPv6PodCIDRName)
+	c.DisableIPv4PodAddressing = vp.GetBool(DisableIPv4PodAddressingName)
 	c.K8sSyncTimeout = vp.GetDuration(K8sSyncTimeoutName)
 	c.AllocatorListTimeout = vp.GetDuration(AllocatorListTimeoutName)
 	c.KeepConfig = vp.GetBool(KeepConfig)
@@ -2596,6 +2606,20 @@ func (c *DaemonConfig) Populate(logger *slog.Logger, vp *viper.Viper) {
 	if c.EnableNat46X64Gateway || c.NodePortNat46X64 {
 		if !c.EnableIPv4 || !c.EnableIPv6 {
 			logging.Fatal(logger, fmt.Sprintf("%s requires both --%s and --%s enabled", EnableNat46X64Gateway, EnableIPv4Name, EnableIPv6Name))
+		}
+	}
+
+	if c.DisableIPv4PodAddressing {
+		if !c.EnableIPv4 || !c.EnableIPv6 {
+			logging.Fatal(logger, fmt.Sprintf("--%s requires both --%s and --%s enabled", DisableIPv4PodAddressingName, EnableIPv4Name, EnableIPv6Name))
+		}
+		switch c.IPAM {
+		case ipamOption.IPAMKubernetes, ipamOption.IPAMClusterPool:
+		default:
+			logging.Fatal(logger, fmt.Sprintf("--%s is only supported with --%s=%s or %s", DisableIPv4PodAddressingName, IPAM, ipamOption.IPAMKubernetes, ipamOption.IPAMClusterPool))
+		}
+		if c.K8sRequireIPv4PodCIDR {
+			logging.Fatal(logger, fmt.Sprintf("--%s conflicts with --%s=true", DisableIPv4PodAddressingName, K8sRequireIPv4PodCIDRName))
 		}
 	}
 
@@ -2811,7 +2835,7 @@ func (c *DaemonConfig) Populate(logger *slog.Logger, vp *viper.Viper) {
 
 	switch c.IPAM {
 	case ipamOption.IPAMKubernetes, ipamOption.IPAMClusterPool:
-		if c.EnableIPv4 {
+		if c.EnableIPv4 && !c.DisableIPv4PodAddressing {
 			c.K8sRequireIPv4PodCIDR = true
 		}
 

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Authors of Cilium
+// This file was not reviewed by a human before submission
 
 package ipam
 
@@ -138,7 +139,9 @@ func (ipam *IPAM) ConfigureAllocator() {
 			ipam.ipv6Allocator = newHostScopeAllocator(prefix)
 		}
 
-		if ipam.config.IPv4Enabled() {
+		// With IPv4 pod addressing disabled, ipv4Allocator stays nil and
+		// AllocateNext only hands out IPv6 addresses.
+		if ipam.config.IPv4Enabled() && !ipam.config.DisableIPv4PodAddressing {
 			prefix, ok := netipx.FromStdIPNet(ipam.nodeAddressing.IPv4().AllocationCIDR().IPNet)
 			if !ok {
 				logging.Fatal(ipam.logger, "Invalid IPv4 allocation CIDR")

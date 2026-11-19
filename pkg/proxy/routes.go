@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Authors of Cilium
+// This file was not reviewed by a human before submission
 
 package proxy
 
@@ -60,11 +61,14 @@ func (p *Proxy) ReinstallRoutingRules(ctx context.Context, mtu int, ipsecEnabled
 			return err
 		}
 
-		if fromIngressProxy || fromEgressProxy {
+		internalIP, _ := netipx.FromStdIP(localNode.GetCiliumInternalIP(false))
+		// Without IPv4 pod addressing cilium_host may have no IPv4 address.
+		// The from-proxy routes only carry replies to local IPv4 pods, of
+		// which there are none, so skip them.
+		if (fromIngressProxy || fromEgressProxy) && internalIP.IsValid() {
 			if !hostDeviceFound {
 				return fmt.Errorf("failed to get host device %s", defaults.HostDevice)
 			}
-			internalIP, _ := netipx.FromStdIP(localNode.GetCiliumInternalIP(false))
 			if err := installFromProxyRoutesIPv4(p.routeManager, p.routeOwner, internalIP, hostDevice, fromIngressProxy, fromEgressProxy, mtu); err != nil {
 				return err
 			}

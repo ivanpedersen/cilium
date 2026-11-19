@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Authors of Cilium
+// This file was not reviewed by a human before submission
 
 package config
 
@@ -151,7 +152,14 @@ func (h *HeaderfileWriter) WriteNodeConfig(w io.Writer, cfg *config.Config) erro
 	cDefinesMap["CILIUM_IPV6_FRAG_MAP_MAX_ENTRIES"] = fmt.Sprintf("%d", option.Config.FragmentsMapEntries)
 
 	if option.Config.EnableIPv4 {
-		cDefinesMap["IPV4_GATEWAY"] = fmt.Sprintf("%#x", byteorder.NetIPAddrToHost32(cfg.CiliumInternalIPv4))
+		// cilium_host has no IPv4 address when IPv4 pod addressing is
+		// disabled. The BPF code still needs the define; it is only
+		// matched against or used as SNAT source in tunnel mode.
+		gw := uint32(0)
+		if cfg.CiliumInternalIPv4.Is4() {
+			gw = byteorder.NetIPAddrToHost32(cfg.CiliumInternalIPv4)
+		}
+		cDefinesMap["IPV4_GATEWAY"] = fmt.Sprintf("%#x", gw)
 	}
 
 	cDefinesMap["CILIUM_IPV4_FRAG_MAP_MAX_ENTRIES"] = fmt.Sprintf("%d", option.Config.FragmentsMapEntries)
